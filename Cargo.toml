@@ -1,0 +1,25 @@
+[package]
+edition = "2024"
+name = "fan-bd"
+repository = "https://github.com/akbarfa49/fan-bd"
+version = "0.1.0"
+
+[profile.dev]
+opt-level = 1
+
+[dependencies]
+bytes = "1.10.1"
+chrono = "0.4.41"
+crossterm = "0.29.0"
+derive_more = { version = "2.0.1", features = ["from"] }
+futures-util = "0.3.31"
+image = "0.25.6"
+regex = "1.11.1"
+reqwest = { version = "0.12.22", features = ["multipart", "json", "stream"] }
+scap = { git = "https://github.com/akbarfa49/scap.git", tag = "v0.0.9" }
+scopeguard = "1.2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0.12"
+tokio = { version = "1.46.1", features = ["full"] }
+triple_accel = "0.4.0"

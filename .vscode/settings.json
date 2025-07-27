@@ -1,0 +1,15 @@
+{
+    "[rust]": {
+        "editor.formatOnSave": true
+    },
+    "rust-analyzer.trace.server": "verbose",
+    "rust-analyzer.inlayHints.closureReturnTypeHints.enable": "always",
+    "rust-analyzer.inlayHints.genericParameterHints.type.enable": true,
+    "rust-analyzer.inlayHints.closingBraceHints.enable": true,
+    "rust-analyzer.inlayHints.closingBraceHints.minLines": 20,
+    "rust-analyzer.inlayHints.lifetimeElisionHints.enable": "always",
+    "rust-analyzer.inlayHints.lifetimeElisionHints.useParameterNames": true,
+    "rust-analyzer.files.exclude": [
+        "ocrpy"
+    ],
+}
