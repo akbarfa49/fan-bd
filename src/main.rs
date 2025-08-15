@@ -4,10 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 use fan_bd::core;
-use fan_bd::engine;
-use image::math::Rect;
-use scap::capturer;
-use scap::targets;
+
 // use fan_bd::engine;
 // use std::process::Stdio;
 // use tokio::io::{AsyncBufReadExt, BufReader};
@@ -17,16 +14,20 @@ use crossterm::{
     style::Print,
     terminal::{self, ClearType},
 };
+use fan_bd::engine::ScreenConfig;
 use std::io::stdout;
 use tokio::process::Command;
 use tokio::spawn;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize core
-    let core = core::Core::new()?;
-
+    // let pure_core: Result<core::Core<Arc<Mutex<scap::capturer::Capturer>>, core::Error> = core::Core::new();
+    let mut core = core::Core::new().unwrap();
+    core.use_drop().await;
+    let game_screen = core.game_screen;
+    core.use_capturer(core::config(0, 0, game_screen.width, game_screen.height, 1.0).unwrap());
     // Start the capture loop in background
-    core.start().await?;
+    core.start().await;
 
     // Get a receiver for loot updates
     let mut stdout = stdout();

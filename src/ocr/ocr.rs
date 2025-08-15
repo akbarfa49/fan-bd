@@ -89,8 +89,10 @@ impl OcrClient {
         let bytes = result.bytes().await?;
         // println! {"{}",status};
         // File
-        // let mut file = File::create(format!("{}.json", chrono::Local::now().timestamp())).unwrap();
+        // let mut file =
+        //     File::create(format!("{}.json", chrono::Local::now().timestamp_millis())).unwrap();
         // _ = file.write_all(&bytes);
+
         let result: OcrApiResult = serde_json::from_slice(&bytes)?;
         let mut out = OcrOutput { data: Vec::new() };
         for (_, v) in result.result.iter().enumerate() {
