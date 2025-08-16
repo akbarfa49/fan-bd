@@ -2,7 +2,7 @@ use core::fmt;
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::ops::{Index, Mul};
+use std::ops::{Add, AddAssign, Index, Mul};
 use std::os::windows::fs::FileExt;
 use std::sync::Arc;
 
@@ -221,6 +221,18 @@ impl Mul for Silver {
     }
 }
 
+impl Add for Silver {
+    type Output = Silver;
+    fn add(self, rhs: Silver) -> Silver {
+        Silver(self.0 + rhs.0)
+    }
+}
+
+impl AddAssign for Silver {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+    }
+}
 // Allow u64 * Silver
 impl Mul<Silver> for u64 {
     type Output = Silver;
@@ -255,6 +267,17 @@ impl fmt::Display for Silver {
     }
 }
 
+mod test_silver {
+    use crate::engine::Silver;
+
+    #[test]
+    fn add_silver() {
+        let mut a = Silver::new(1);
+        let b = Silver::new(2);
+        a += b;
+        assert_eq!(a.0, 3);
+    }
+}
 /* todo:
 1. add ocr function to struct
 2. add stream function so that the data can be determined easily
@@ -344,9 +367,10 @@ impl BlackDesertLootTracker {
             idx -= 1;
         }
         if idx == 0 {
+            println!("{}", data);
             return None;
         }
-        // println!("{}", data);
+        //
 
         let (raw_loot, amount_str) = (
             chars[..idx].iter().collect::<String>(),
@@ -355,6 +379,7 @@ impl BlackDesertLootTracker {
         let loot = to_title_case(&normalize_spaces(&raw_loot));
         let amount = extract_number(&amount_str)?;
         if amount == 0 {
+            println!("{}", data);
             return None;
         }
         Some(LootData {
@@ -506,7 +531,7 @@ impl BlackDesertLootTracker {
                         &cleaned_key.to_lowercase(),
                         &clean_lootname.to_lowercase(),
                     );
-                    if result > 0.4 && result > rate {
+                    if result > 0.6 && result > rate {
                         v.name = key.clone();
                         rate = result;
                     }
@@ -584,8 +609,12 @@ impl BlackDesertLootTracker {
         // }
     }
     async fn find_loot_metadata(&self, s: &String) -> Option<Item> {
-        let result = self.item_fetcher.get_data_by_name(&s).await.ok()?;
-
+        let result = self.item_fetcher.get_data_by_name(&s).await;
+        if let Err(err) = result {
+            println!("{}: {}", s, err);
+            return None;
+        }
+        let result = result.unwrap();
         // match self.item_fetcher {
         //     item_fetcher::Fetcher::Default(f) => f.get_data_by_name(item_name),
         // }

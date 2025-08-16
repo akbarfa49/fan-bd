@@ -14,7 +14,7 @@ use crossterm::{
     style::Print,
     terminal::{self, ClearType},
 };
-use fan_bd::engine::ScreenConfig;
+use fan_bd::engine::{ScreenConfig, Silver};
 use std::io::stdout;
 use tokio::process::Command;
 use tokio::spawn;
@@ -37,9 +37,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // println!("{:?}", loot_updates);
         stdout.execute(cursor::MoveTo(0, 0)).unwrap();
         stdout.execute(terminal::Clear(ClearType::All)).unwrap();
+        let mut total_silver = Silver::new(0);
         for (_, v) in loot_updates {
-            println!("{}: {}", v.name, v.amount);
+            let silver = v.calculate();
+            println!("{}: {}. {}", v.name, v.amount, silver);
+            total_silver += silver;
         }
+        println!("total silver: {}", total_silver);
         tokio::select! {
                 // This branch executes when new loot data arrives
 
@@ -51,7 +55,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 // Add a small sleep to prevent busy-waiting
-                _ = tokio::time::sleep(Duration::from_millis(5000)) => {
+                _ = tokio::time::sleep(Duration::from_millis(10000)) => {
 
                 }
         // Move cursor to top and clear
