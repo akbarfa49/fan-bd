@@ -4,9 +4,7 @@ use derive_more::From;
 use image::math::Rect;
 use reqwest::{Body, Client, multipart};
 use serde::Deserialize;
-use std::fs::File;
-use std::io::Write;
-use std::{fmt, result::Result};
+
 pub struct OcrClient {
     client: Client,
     base_url: String,

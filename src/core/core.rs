@@ -1,14 +1,17 @@
-use futures_util::select;
+// use anyhow::Ok;
 // use core::error;
 use image::{Rgb, RgbImage};
 use imageproc::drawing::draw_hollow_rect_mut;
 use imageproc::rect::Rect;
 use serde::{Deserialize, Serialize};
+use std::hash::Hash;
 use std::io::{BufWriter, Write};
 use std::sync::Arc;
 use std::{collections::HashMap, fs::File};
-use tokio::sync::{Mutex, watch};
+use tokio::sync::{Mutex, mpsc, watch};
+use tokio::time;
 
+use crate::ocr::OcrOutput;
 use crate::{
     core::{IFrameCapturer, capturer, error, game_screen},
     engine::{BlackDesertLootTracker, LootData, LootDetectionMode, Screen},
@@ -38,6 +41,11 @@ pub struct GameScreen {
     pub width: u32,
     // 100% = 100
     pub scale: u16,
+}
+struct OcrChannel {
+    index: u64,
+    result: Option<OcrOutput>,
+    err: Option<error::Error>,
 }
 
 impl Core {
@@ -94,54 +102,83 @@ impl Core {
     }
 
     async fn run_capture_loop(&self) {
-        let mut empty_frame_count = 0;
-        const MAX_EMPTY_FRAMES: usize = 10;
+        // let mut empty_frame_count = 0;
+        // const MAX_EMPTY_FRAMES: usize = 10;
         // const FRAME_INTERVAL: Duration = Duration::from_millis(500);
         // game_screen();
         {
             self.capturer.as_ref().unwrap().lock().await.start_capture();
         }
+        let (sender, mut receiver) = mpsc::channel::<OcrChannel>(10);
+        let get_data_channel = self.clone();
+        tokio::spawn(async move {
+            _ = get_data_channel.get_data_channel(sender).await;
+        });
+        let mut idx = 0;
+        let mut ordered_buffer: HashMap<u64, OcrChannel> = HashMap::new();
         loop {
-            {
+            tokio::select! {
+                Some(msg) = receiver.recv() => {
+                    if msg.index != idx{
+                        ordered_buffer.insert(msg.index, msg);
+                        continue
+                    }
+
+
+                     self.process_data(msg).await;
+
+                    idx +=1;
+                    loop{
+                        let data = ordered_buffer.remove(&idx);
+                        if data.is_none(){
+                            break
+                        }
+
+                        self.process_data(data.unwrap()).await;
+                        idx += 1;
+                    }
+
+                },
+                _ = time::sleep(time::Duration::from_secs(1)) => {
                 let status = self.status.lock().await;
                 match *status {
                     CoreStatus::Stopped => break,
                     _ => {}
                 };
-            }
-            match self.get_data().await {
-                Ok(data) => {
-                    empty_frame_count = 0;
-                    let texts: Vec<String> = data.data.into_iter().map(|f| f.text).collect();
-                    // let file = File::create(format!(
-                    //     "{}_history.txt",
-                    //     chrono::Local::now().timestamp_millis()
-                    // ))
-                    // .unwrap();
-                    // let mut writer = BufWriter::new(file);
-                    // for v in &texts {
-                    //     _ = writeln!(writer, "{}", v);
-                    // }
-                    // Update shared loot data
 
-                    // let _ = self.mutex.lock().await;
-                    let mut tracker = self.loot_tracker.lock().await;
-                    tracker.insert(&texts).await;
-                    // Send update to all receivers
-                    let _ = self.loot_sender.send(tracker.get_loot_data().clone());
-                }
-                Err(e) => {
-                    eprintln!("Error in capture loop: {}", e);
-                    empty_frame_count += 1;
-                    if empty_frame_count >= MAX_EMPTY_FRAMES {
-                        eprintln!("Too many empty frames, stopping capture loop");
-                        break;
-                    }
                 }
             }
+
             // Add delay between captures to prevent CPU overload
             // time::sleep(FRAME_INTERVAL).await;
         }
+        drop(receiver);
+    }
+
+    async fn process_data(&self, input: OcrChannel) {
+        if input.result.is_none() {
+            return;
+        }
+        let data = input.result.unwrap();
+
+        let texts: Vec<String> = data.data.into_iter().map(|f| f.text).collect();
+        // let file = File::create(format!(
+        //     "{}_history.txt",
+        //     chrono::Local::now().timestamp_millis()
+        // ))
+        // .unwrap();
+        // let mut writer = BufWriter::new(file);
+        // for v in &texts {
+        //     _ = writeln!(writer, "{}", v);
+        // }
+        // Update shared loot data
+
+        // let _ = self.mutex.lock().await;
+
+        let mut tracker = self.loot_tracker.lock().await;
+        tracker.insert(&texts).await;
+        // Send update to all receivers
+        let _ = self.loot_sender.send(tracker.get_loot_data().clone());
     }
 
     async fn get_data(&self) -> Result<ocr::OcrOutput, error::Error> {
@@ -198,6 +235,93 @@ impl Core {
         // }
         // img.save(format!("{}.png", chrono::Local::now().timestamp_millis()));
         return Ok(output);
+    }
+    async fn get_data_channel(&self, sender: mpsc::Sender<OcrChannel>) -> Result<(), error::Error> {
+        // let frame = self
+        //     .capturer
+        //     .as_ref()
+        //     .unwrap()
+        //     .lock()
+        //     .await
+        //     .g()
+        //     .await;
+        // if let Err(frame) = frame {
+        //     return Err(frame);
+        // }
+        // let frame = frame.unwrap();
+
+        // let _guard = self.mutex.lock().await;
+        let mut idx = 0;
+        loop {
+            {
+                let status = self.status.lock().await;
+                match *status {
+                    CoreStatus::Stopped => break,
+                    _ => {}
+                };
+            }
+
+            let frame = {
+                // println!("geting capturer");
+                let mut capturer = self.capturer.as_ref().unwrap().lock().await;
+                let frame = capturer.get_next_frame().await;
+                // println!("frame fetched");
+                frame
+            };
+
+            if let Err(frame) = frame {
+                return Err(error::Error::CapturerError(frame.to_string()));
+            }
+            let frame = frame.unwrap().to_rgb();
+            let ocr_client = self.ocr_client.clone();
+            let cloned_sender = sender.clone();
+            // _ = image::save_buffer(
+            //     format!("{}.png", chrono::Local::now().timestamp()),
+            //     &frame.data,
+            //     frame.width,
+            //     frame.height,
+            //     image::ExtendedColorType::Rgb8,
+            // );
+            tokio::spawn(async move {
+                let result = ocr_client
+                    .do_ocr(OcrInput {
+                        data: frame.data.clone(),
+                        width: frame.width,
+                        height: frame.height,
+                    })
+                    .await
+                    .map_err(|e| error::Error::OcrError(e.to_string()));
+                if result.is_err() {
+                    // return result;
+                    _ = cloned_sender
+                        .send(OcrChannel {
+                            index: idx,
+                            result: None,
+                            err: result.err(),
+                        })
+                        .await;
+                    return;
+                }
+
+                _ = cloned_sender
+                    .send(OcrChannel {
+                        index: idx,
+                        result: Some(result.unwrap()),
+                        err: None,
+                    })
+                    .await;
+            });
+            idx += 1;
+        }
+
+        // let mut img = RgbImage::from_raw(frame.width, frame.height, frame.data).unwrap();
+        // for v in output.data.iter() {
+        //     let rect =
+        //         Rect::at(v.area.x as i32, v.area.y as i32).of_size(v.area.width, v.area.height);
+        //     draw_hollow_rect_mut(&mut img, rect, Rgb([0, 255, 0]));
+        // }
+        // img.save(format!("{}.png", chrono::Local::now().timestamp_millis()));
+        return Ok(());
     }
 
     async fn recapture_into_exact_frame(&self) -> Result<(), error::Error> {

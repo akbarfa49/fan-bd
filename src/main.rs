@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut total_silver = Silver::new(0);
         for (_, v) in loot_updates {
             let silver = v.calculate();
-            println!("{}: {}. {}", v.name, v.amount, silver);
+            println!("({}){}: {}. {}", v.id, v.name, v.amount, silver);
             total_silver += silver;
         }
         println!("total silver: {}", total_silver);

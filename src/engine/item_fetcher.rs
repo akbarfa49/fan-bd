@@ -58,14 +58,17 @@ async fn search_id_by_name(client: &Client, name: &str) -> Result<u64> {
     let mut data = search_result.data;
     data = data
         .into_iter()
-        .filter(|i| i.db_type == "item" && i.name == name)
+        .filter(|i| i.db_type == "item" && i.name.eq_ignore_ascii_case(name))
         .collect();
     data.sort_by_key(|item| item.id);
     if data.len() == 0 {
         return Err(anyhow!("data doesnt exist"));
     }
+    // low to high.
+    // new trashloot always have higher id
+    // the other base item usually have lower id
     let mut item = data.first().unwrap();
-    if item.grade_type.unwrap() != 0 {
+    if item.grade_type.unwrap() == 0 {
         item = data.last().unwrap();
     }
     Ok(item.id)
@@ -134,7 +137,7 @@ impl ItemFetcher for DefaultFetcher {
 
         let mut item_data = ItemData {
             id,
-            name: item_name.to_string(),
+            name: detail.name,
             vendor_buy_price: detail.buy_price,
             vendor_sell_price: detail.sell_price,
             market_buy_price: 0,

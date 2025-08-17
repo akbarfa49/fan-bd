@@ -14,6 +14,8 @@ use scap::capturer::Resolution;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::{cmp::*, vec};
+use tokio::fs::OpenOptions;
+use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 use unicode_normalization::UnicodeNormalization;
 #[derive(Clone, Copy)]
@@ -513,13 +515,13 @@ impl BlackDesertLootTracker {
                     .name
                     .clone()
                     .chars()
-                    .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+                    .filter(|c| c.is_alphanumeric())
                     .collect();
                 for key in self.loot_table.keys() {
                     let cleaned_key: String = key
                         .clone()
                         .chars()
-                        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+                        .filter(|c| c.is_alphanumeric())
                         .collect();
                     if cleaned_key.starts_with(&clean_lootname)
                         || cleaned_key.ends_with(&clean_lootname)
@@ -537,6 +539,23 @@ impl BlackDesertLootTracker {
                     }
                 }
             }
+        }
+
+        if true {
+            let mut file = OpenOptions::new()
+                .append(true)
+                .open("data.txt")
+                .await
+                .unwrap();
+
+            for v in new_loot_data_entry.iter() {
+                _ = file
+                    .write_all(format!("{}: {}\n", v.name, v.amount).as_bytes())
+                    .await;
+            }
+            file.write_all(b"=======================\n").await;
+
+            _ = file.flush().await;
         }
         let diff_loot_data: Vec<LootData>;
         match self.detection_mode {
@@ -561,6 +580,7 @@ impl BlackDesertLootTracker {
                 self.loot_entry_tracker = new_loot_data_entry;
             }
         }
+
         // let mut loot_history = self.loot_history;
         // let mut history: Vec<LootData> = Vec::new();
         let mut history = self.loot_history.as_ref().lock().await;
@@ -580,7 +600,7 @@ impl BlackDesertLootTracker {
                 id: metadata.id,
                 price: metadata.price,
                 amount: v.amount,
-                name: v.name.to_owned(),
+                name: metadata.name,
                 hour: v.hour,
                 minute: v.minute,
             };
@@ -701,7 +721,7 @@ impl BlackDesertLootTracker {
         match detection_mode {
             LootDetectionMode::OCRDropLogViaStream => {
                 let screen = screen.unwrap();
-                config.stream_fps = 2.2;
+                config.stream_fps = 1.8;
 
                 config.capture_area.width =
                     ((screen.width as f32 * screen.scale as f32 * DROP_LOG_PANEL_WIDTH) / 100.0)
@@ -774,6 +794,17 @@ fn normalize_spaces(input: &str) -> String {
         } else {
             output.push(c);
             was_whitespace = false;
+        }
+    }
+
+    output
+}
+fn no_spaces(input: &str) -> String {
+    let mut output = String::new();
+
+    for c in input.trim().chars() {
+        if !c.is_whitespace() {
+            output.push(c);
         }
     }
 
