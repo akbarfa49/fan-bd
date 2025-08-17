@@ -115,6 +115,16 @@ async fn market_data(
 #[async_trait]
 impl ItemFetcher for DefaultFetcher {
     async fn get_data_by_name(&self, item_name: &str) -> Result<ItemData> {
+        if item_name.contains("event") {
+            return Ok(ItemData {
+                id: 0,
+                name: item_name.to_string(),
+                vendor_buy_price: 0,
+                vendor_sell_price: 0,
+                market_buy_price: 0,
+                market_sell_price: 0,
+            });
+        }
         let id = search_id_by_name(&self.client, item_name)
             .await
             .context("failed to search id by name")?;

@@ -367,7 +367,7 @@ impl BlackDesertLootTracker {
             idx -= 1;
         }
         if idx == 0 {
-            println!("{}", data);
+            // println!("{}", data);
             return None;
         }
         //
@@ -379,7 +379,7 @@ impl BlackDesertLootTracker {
         let loot = to_title_case(&normalize_spaces(&raw_loot));
         let amount = extract_number(&amount_str)?;
         if amount == 0 {
-            println!("{}", data);
+            // println!("{}", data);
             return None;
         }
         Some(LootData {
@@ -701,7 +701,7 @@ impl BlackDesertLootTracker {
         match detection_mode {
             LootDetectionMode::OCRDropLogViaStream => {
                 let screen = screen.unwrap();
-                config.stream_fps = 2.4;
+                config.stream_fps = 2.2;
 
                 config.capture_area.width =
                     ((screen.width as f32 * screen.scale as f32 * DROP_LOG_PANEL_WIDTH) / 100.0)

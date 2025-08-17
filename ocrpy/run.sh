@@ -1,2 +1,2 @@
 #!/bin/sh
-uvicorn --app-dir ocrpy ocr_server:app --host 127.0.0.1 --port 42069
+uvicorn --app-dir ocrpy ocr_server:app --host 127.0.0.1 --port 42069 --log-level warnings
